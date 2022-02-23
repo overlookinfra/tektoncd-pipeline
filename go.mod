@@ -12,7 +12,7 @@ replace (
 require (
 	github.com/cloudevents/sdk-go/v2 v2.5.0
 	github.com/containerd/containerd v1.5.9
-	github.com/ghodss/yaml v1.0.0
+	github.com/ghodss/yaml v1.0.1-0.20190212211648-25d852aebe32
 	github.com/google/go-cmp v0.5.7
 	github.com/google/go-containerregistry v0.8.1-0.20220216220642-00c59d91847c
 	github.com/google/go-containerregistry/pkg/authn/k8schain v0.0.0-20220216220642-00c59d91847c
@@ -23,6 +23,7 @@ require (
 	github.com/mitchellh/go-homedir v1.1.0
 	github.com/opencontainers/image-spec v1.0.3-0.20220114050600-8b9d41f48198
 	github.com/pkg/errors v0.9.1
+	github.com/puppetlabs/relay-sdk-go v1.17.7
 	github.com/tektoncd/plumbing v0.0.0-20211012143332-c7cc43d9bc0c
 	go.opencensus.io v0.23.0
 	go.uber.org/zap v1.19.1
@@ -41,9 +42,9 @@ require (
 	cloud.google.com/go/compute v1.3.0 // indirect
 	github.com/Azure/azure-sdk-for-go v61.5.0+incompatible // indirect
 	github.com/docker/distribution v2.8.0+incompatible // indirect
-	github.com/emicklei/go-restful v2.15.0+incompatible // indirect
 	github.com/golang-jwt/jwt/v4 v4.3.0 // indirect
 	github.com/google/go-containerregistry/pkg/authn/kubernetes v0.0.0-20220216220642-00c59d91847c // indirect
+	github.com/puppetlabs/leg/timeutil v0.4.2
 	go.uber.org/multierr v1.7.0 // indirect
 	golang.org/x/crypto v0.0.0-20220214200702-86341886e292 // indirect
 	golang.org/x/time v0.0.0-20220210224613-90d013bbcef8 // indirect

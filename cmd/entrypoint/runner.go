@@ -20,17 +20,30 @@ package main
 
 import (
 	"context"
+	"encoding/json"
+	"fmt"
+	"net/http"
+	"net/url"
 	"os"
 	"os/exec"
 	"os/signal"
+	"path"
 	"syscall"
+	"time"
 
+	"github.com/puppetlabs/leg/timeutil/pkg/retry"
+	"github.com/puppetlabs/relay-sdk-go/pkg/task"
+	"github.com/puppetlabs/relay-sdk-go/pkg/taskutil"
 	"github.com/tektoncd/pipeline/pkg/entrypoint"
 	"github.com/tektoncd/pipeline/pkg/pod"
 )
 
 // TODO(jasonhall): Test that original exit code is propagated and that
 // stdout/stderr are collected -- needs e2e tests.
+
+const (
+	TimerStepInit = "relay.step.init"
+)
 
 // realRunner actually runs commands.
 type realRunner struct {
@@ -45,6 +58,11 @@ func (rr *realRunner) Run(ctx context.Context, args ...string) error {
 		return nil
 	}
 	name, args := args[0], args[1:]
+
+	// TODO Ignore errors for now
+	_ = timing()
+	_ = setEnvironmentVariablesFromMetadata()
+	_ = validateSchemas()
 
 	// Receive system signals on "rr.signals"
 	if rr.signals == nil {
@@ -92,4 +110,106 @@ func (rr *realRunner) Run(ctx context.Context, args ...string) error {
 	}
 
 	return nil
+}
+
+func setEnvironmentVariablesFromMetadata() error {
+	planOpts := taskutil.DefaultPlanOptions{}
+	t := task.NewTaskInterface(planOpts)
+
+	data, err := t.ReadEnvironmentVariables()
+	if err != nil {
+		return err
+	}
+
+	var ev map[string]interface{}
+	err = json.Unmarshal(data, &ev)
+	if err != nil {
+		return err
+	}
+	for name, value := range ev {
+		os.Setenv(name, fmt.Sprintf("%v", value))
+	}
+
+	return nil
+}
+
+func timing() error {
+	mu, err := taskutil.MetadataURL(path.Join("/timers", url.PathEscape(TimerStepInit)))
+	if err != nil {
+		return err
+	}
+
+	te, err := url.Parse(mu)
+	if err != nil {
+		return err
+	}
+
+	req, err := http.NewRequest(http.MethodPut, te.String(), nil)
+	if err != nil {
+		return err
+	}
+
+	_, err = getResponse(req, 5*time.Second, []retry.WaitOption{})
+	if err != nil {
+		return err
+	}
+
+	return nil
+}
+
+func validateSchemas() error {
+	mu, err := taskutil.MetadataURL("validate")
+	if err != nil {
+		return err
+	}
+
+	te, err := url.Parse(mu)
+	if err != nil {
+		return err
+	}
+
+	req, err := http.NewRequest(http.MethodPost, te.String(), nil)
+	if err != nil {
+		return err
+	}
+
+	// We are ignoring the response for now because this endpoint just sends
+	// all validation errors to the error capturing system.
+	_, err = getResponse(req, 5*time.Second, []retry.WaitOption{})
+	if err != nil {
+		return err
+	}
+
+	return nil
+}
+
+func getResponse(request *http.Request, timeout time.Duration, waitOptions []retry.WaitOption) (*http.Response, error) {
+	ctx := context.Background()
+	ctx, cancel := context.WithTimeout(ctx, timeout)
+	defer cancel()
+
+	var response *http.Response
+	err := retry.Wait(ctx, func(ctx context.Context) (bool, error) {
+		var rerr error
+		response, rerr = http.DefaultClient.Do(request)
+		if rerr != nil {
+			return false, rerr
+		}
+
+		if response != nil {
+			// TODO Consider expanding to all 5xx (and possibly some 4xx) status codes
+			switch response.StatusCode {
+			case http.StatusInternalServerError, http.StatusBadGateway,
+				http.StatusServiceUnavailable, http.StatusGatewayTimeout:
+				return false, nil
+			}
+		}
+
+		return true, nil
+	}, waitOptions...)
+	if err != nil {
+		return nil, err
+	}
+
+	return response, nil
 }
